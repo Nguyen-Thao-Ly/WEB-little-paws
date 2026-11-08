@@ -1,17 +1,25 @@
 (()=> {
   const labels={NOT_ADOPTED:"Chưa nhận nuôi",PENDING_ADOPTION:"Đang chờ nhận nuôi",ADOPTED:"Đã nhận nuôi",NOT_READY:"Chưa sẵn sàng nhận nuôi"};
   const esc=s=>String(s??"—").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  let index=0,photos=[];
+  let index=0,photos=[],objectUrls=[];
   function data(){try{return JSON.parse(localStorage.getItem("littlePawsData")||"{}")}catch{return {}}}
-  function close(){document.getElementById("cat-profile-modal")?.remove();document.body.style.overflow=""}
-  function open(p){
-    photos=[p.image,...(Array.isArray(p.images)?p.images:[])].filter(Boolean);
-    index=0;
+  function close(){document.getElementById("cat-profile-modal")?.remove();document.body.style.overflow="";objectUrls.forEach(URL.revokeObjectURL);objectUrls=[]}
+  async function photoSources(p){
+    const ids=Array.isArray(p.imageIds)?p.imageIds.slice():[];
+    if(p.primaryImageId){const i=ids.indexOf(p.primaryImageId);if(i>=0)ids.splice(i,1);ids.unshift(p.primaryImageId)}
+    const found=[];
+    if(ids.length&&"indexedDB"in window){try{const db=await new Promise((resolve,reject)=>{const r=indexedDB.open("littlePawsImageDB",1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});for(const id of ids){const rec=await new Promise((resolve,reject)=>{const t=db.transaction("images","readonly"),r=t.objectStore("images").get(id);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});if(rec?.blob){const u=URL.createObjectURL(rec.blob);objectUrls.push(u);found.push(u)}}db.close()}catch{}}
+    if(found.length)return found;
+    return [p.image,...(Array.isArray(p.images)?p.images:[])].filter(Boolean);
+  }
+  async function open(p){
+    close();photos=await photoSources(p);index=0;
+    if(!photos.length)photos=[""];
     const status=labels[p.status]||labels.NOT_ADOPTED;
     const modal=document.createElement("div");modal.id="cat-profile-modal";modal.setAttribute("role","dialog");modal.setAttribute("aria-modal","true");modal.setAttribute("aria-label","Hồ sơ mèo "+p.name);
-    modal.innerHTML=`<div class="cat-profile-backdrop"></div><section class="cat-profile-panel"><button class="cat-profile-close" type="button" aria-label="Đóng">×</button><div class="cat-profile-gallery"><button type="button" class="cat-photo-prev" aria-label="Ảnh trước">‹</button><img class="cat-profile-photo" src="${esc(photos[0])}" alt="${esc(p.name)}"><button type="button" class="cat-photo-next" aria-label="Ảnh tiếp">›</button><span class="cat-photo-count"></span></div><div class="cat-profile-info"><span class="cat-profile-status">${status}</span><h2>${esc(p.name)}</h2><p class="cat-profile-id">${esc(p.id)}</p><dl><div><dt>Tuổi</dt><dd>${esc(p.age)}</dd></div><div><dt>Giới tính</dt><dd>${esc(p.gender)}</dd></div><div><dt>Sức khỏe</dt><dd>${esc(p.health)}</dd></div><div><dt>Tiêm phòng</dt><dd>${esc(p.vaccinated)}</dd></div><div><dt>Tính cách</dt><dd>${esc(p.personality)}</dd></div><div><dt>Chăm sóc</dt><dd>${esc(p.care)}</dd></div></dl><p>${esc(p.description)}</p></div></section>`;
+    modal.innerHTML=`<div class="cat-profile-backdrop"></div><section class="cat-profile-panel"><button class="cat-profile-close" type="button" aria-label="Đóng">×</button><div class="cat-profile-gallery"><button type="button" class="cat-photo-prev" aria-label="Ảnh trước">‹</button><img class="cat-profile-photo" alt="${esc(p.name)}"><button type="button" class="cat-photo-next" aria-label="Ảnh tiếp">›</button><span class="cat-photo-count"></span></div><div class="cat-profile-info"><span class="cat-profile-status">${status}</span><h2>${esc(p.name)}</h2><p class="cat-profile-id">${esc(p.id)}</p><dl><div><dt>Tuổi</dt><dd>${esc(p.age)}</dd></div><div><dt>Giới tính</dt><dd>${esc(p.gender)}</dd></div><div><dt>Sức khỏe</dt><dd>${esc(p.health)}</dd></div><div><dt>Tiêm phòng</dt><dd>${esc(p.vaccinated)}</dd></div><div><dt>Tính cách</dt><dd>${esc(p.personality)}</dd></div><div><dt>Chăm sóc</dt><dd>${esc(p.care)}</dd></div></dl><p>${esc(p.description)}</p></div></section>`;
     document.body.appendChild(modal);document.body.style.overflow="hidden";
-    const update=()=>{const img=modal.querySelector(".cat-profile-photo");img.src=photos[index];modal.querySelector(".cat-photo-count").textContent=(index+1)+" / "+photos.length;modal.querySelector(".cat-photo-prev").disabled=photos.length<2;modal.querySelector(".cat-photo-next").disabled=photos.length<2};
+    const update=()=>{modal.querySelector(".cat-profile-photo").src=photos[index];modal.querySelector(".cat-photo-count").textContent=(index+1)+" / "+photos.length;modal.querySelector(".cat-photo-prev").disabled=photos.length<2;modal.querySelector(".cat-photo-next").disabled=photos.length<2};
     modal.querySelector(".cat-profile-close").onclick=close;modal.querySelector(".cat-profile-backdrop").onclick=close;
     modal.querySelector(".cat-photo-prev").onclick=()=>{index=(index+photos.length-1)%photos.length;update()};
     modal.querySelector(".cat-photo-next").onclick=()=>{index=(index+1)%photos.length;update()};
